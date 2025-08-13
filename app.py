@@ -119,7 +119,7 @@ def get_weather():
     url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001"
     params = {
         "Authorization": CWA_API_KEY,
-        "locationName": "桃園",
+        "locationName": "嘉義",
     }
     try:
         r = requests.get(url, params=params, timeout=8)  # 預設驗證 SSL
@@ -132,3 +132,4 @@ def get_weather():
 if __name__ == "__main__":
     # 本地測試可改 port；Railway 會由 gunicorn 啟動並接 PORT
     app.run(host="0.0.0.0", port=8080)
+
