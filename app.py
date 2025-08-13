@@ -200,27 +200,38 @@ def list_uploaded_backgrounds():
 def background_current():
     meta = get_bg_meta()
     mode = meta.get("mode")
-    ts = int(time.time())
 
-    # static → 302 轉 Netlify /static/<name>?t=...
+    # 這個端點永遠不要被快取（避免「current」被記住）
+    nocache_headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+    }
+
+    # 1) static：靜態圖在 Netlify，所以回「相對路徑」的 302
     if mode == "static" and meta.get("name"):
-        name = meta["name"]
-        return redirect(f"{STATIC_PUBLIC_BASE}/static/{quote(name)}?t={ts}", code=302)
+        resp = redirect(f"/static/{meta['name']}", code=302)  # <-- 關鍵：相對路徑，不要帶 Railway 網域
+        for k, v in nocache_headers.items():
+            resp.headers[k] = v
+        return resp
 
-    # upload → Railway 直接回檔，關閉快取
+    # 2) upload：檔在 Railway volume，直接送檔；仍附 no-store
     if mode == "upload" and meta.get("name"):
-        filename = os.path.basename(meta["name"])
-        path = os.path.join(BG_UPLOAD_DIR, filename)
+        path = os.path.join(BG_UPLOAD_DIR, meta["name"])
         if os.path.isfile(path):
-            resp = send_from_directory(BG_UPLOAD_DIR, filename)
-            resp.headers["Cache-Control"] = "no-store, max-age=0"
+            resp = make_response(send_from_directory(BG_UPLOAD_DIR, meta["name"]))
+            for k, v in nocache_headers.items():
+                resp.headers[k] = v
             return resp
 
-    # url → 直接 302
+    # 3) url：轉到外部 URL；仍附 no-store
     if mode == "url" and meta.get("url"):
-        return redirect(meta["url"], code=302)
+        resp = redirect(meta["url"], code=302)
+        for k, v in nocache_headers.items():
+            resp.headers[k] = v
+        return resp
 
     return "", 404
+
 
 @app.route("/background/uploads/<path:filename>", methods=["GET"])
 def background_uploads(filename):
@@ -235,3 +246,4 @@ def background_uploads(filename):
 # ====== Local run ======
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
+
